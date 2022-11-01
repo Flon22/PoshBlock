@@ -21,6 +21,7 @@ $ballSpeed = 7
 ## LOGIC
 $global:gameEnabled = $true
 $global:currentBlocks = New-Object System.Collections.ArrayList
+$global:score = 0
 $global:blockColours = @{
     1="#e02424" 
     2="#e06624" 
@@ -33,6 +34,8 @@ $global:blockColours = @{
     9="#9219c2"
     0="#d40db2"
 }
+$global:powerUpChance = 10
+$global:livesLeft = 3
 
 ## LEVELS
 $levelLocation = ".\Levels\"
@@ -66,9 +69,10 @@ function New-Ball($xLoc = 0, $yLoc = 0, $angle = 20, $speed = $ballSpeed, $form)
 
 
 ## GENERATE A NEW BLOCK
-function New-Block($xLoc = 100, $yLoc = 100, $colour, $width, $form){
+function New-Block($xLoc = 100, $yLoc = 100, $colour, $width, $form, $score = 10){
     if($colour -notmatch "\#"){
         $backColour = $global:blockColours[[int]$colour]
+        $score = [float]$colour * 10
     }else{
         $backColour = $colour
     }
@@ -81,7 +85,7 @@ function New-Block($xLoc = 100, $yLoc = 100, $colour, $width, $form){
     $button.BackColor = $backColour
     $form.controls.add($button)
 
-    $xLocRight = [int]$xLoc + 70
+    $xLocRight = [int]$xLoc + $width
     $yLocBott = [int]$yLoc + 20
 
     $paddle = new-object PsObject -Property @{
@@ -90,8 +94,10 @@ function New-Block($xLoc = 100, $yLoc = 100, $colour, $width, $form){
         xLocRight = $xLocRight;
         yLocBott = $yLocBott;
         button = $button;
+        score = $score;
     }
     return $paddle
+
 }
 
 
@@ -146,6 +152,7 @@ function Update-BallPosition($ball, $paddle, $form, $debug = $false){
     
     # Check collision on new coordinates
     $collision = Test-Collision $tempXLoc $tempYLoc $ball $paddle $form
+    
     # if it collides, then calulate the new angle and redo coordinates
     if($collision -ne "" -and $collision -ne 6){
         $ball = New-BallAngle $collision $ball $paddle
@@ -169,12 +176,20 @@ function Update-BallPosition($ball, $paddle, $form, $debug = $false){
 
 }
 
+## UPDATE SCOREBOARD
+function Update-Score($score){
+    $global:score += $score
+    $scoreDisplay.text = $global:score
+}
+
 ## CHECK COLLISION FOR BALL ON A GIVEN X & Y COORDINATE
 function Test-Collision($xLoc, $yLoc, $ball, $paddle, $form){
     # Direction is which wall it has bounced off of. 1 = Right wall, 2 = Top wall, 3 = Left Wall, 4 = Bottom
     $direction = ""
     $ballXMid = $xLoc + ($ball.button.width / 2)
     $ballYMid = $yLoc + ($ball.button.height / 2)
+    $currBallXMid = $ball.button.location.x + ($ball.button.width / 2)
+    $currBallYMid = $ball.button.location.y + ($ball.button.width / 2)
 
     # Returns all objects that the ball will collide with on the next frame
     $collisionBlock = $global:currentBlocks | where-object {[float]$_.xLoc -lt [float]$ballXMid -and [float]$_.xLocRight -gt [float]$ballXMid -and [float]$_.yLoc -lt [float]$ballYMid -and [float]$_.yLocBott -gt [float]$ballYMid}
@@ -182,13 +197,21 @@ function Test-Collision($xLoc, $yLoc, $ball, $paddle, $form){
     # If a collision is returned then then handle collision
     if($collisionBlock){
         # Check the collision direction to generate a direction to bounce
-        $currBallXMid = $ball.button.location.x + ($ball.button.width / 2)
-        $currBallYMid = $ball.button.location.y + ($ball.button.width / 2)
         $direction = Test-CollisionDirection $ballXMid $ballYMid $collisionBlock[0] $currBallXMid $currBallYMid
 
         # Set the block to invisible and remove it from the block arraylist
         $collisionBlock[0].button.visible = $false
         $global:currentblocks.remove($collisionBlock[0])
+        
+        # Update score variable and UI
+        Update-Score $collisionBlock[0].score
+
+        # Roll dice and spawn in a Powerup
+        $diceRoll = Get-Random -Minimum 0 -Maximum 100
+        if($diceRoll -lt $global:powerUpChance){
+            #Spawn Powerup
+
+        }
 
     }else{
         # If there isnt a block collision, then check for a collision with the boundaries
@@ -206,12 +229,11 @@ function Test-Collision($xLoc, $yLoc, $ball, $paddle, $form){
                 }
             {$_ -ge $bottomYBound} {
                     $direction = 6 # a collision with the bottom boundary is a game over/lose life
+                    break
                 }
             {$_ -ge $paddle.button.location.y - ($paddle.button.height / 2)}{
-                # if the location is below paddle distance then check for paddle collision
-                if($xLoc -gt $paddle.button.location.x -and $xLoc -lt $paddle.xLocRight){
-                    $direction = 5
-                }
+                $direction = Test-CollisionDirection $ballXMid $ballYMid $paddle $currBallXMid $currBallYMid
+                if($direction -eq 4){$direction = 5}
             }
         }
     }
@@ -219,7 +241,7 @@ function Test-Collision($xLoc, $yLoc, $ball, $paddle, $form){
 }
 
 ## CHECK COLLISION DIRECTION USING LINE SEGMENT INTERSECTION ALGORITHM
-function Test-CollisionDirection($ballXMid, $BallMid, $collisionBlock, $xLoc, $yLoc){
+function Test-CollisionDirection($ballXMid, $BallMid, $collisionObject, $xLoc, $yLoc){
     # Generate vectors of the ball position across current and future frame
     $pointA = new-object PsObject -Property @{
         xLoc = $xLoc;
@@ -235,50 +257,49 @@ function Test-CollisionDirection($ballXMid, $BallMid, $collisionBlock, $xLoc, $y
     # Generate vectors and test each of the collided block wall segments in turn
     For($i=1;$i -lt 5;$i++){
         Switch($i){
-            2{
-                $pointC = new-object PsObject -Property @{
-                    xLoc = $collisionBlock.button.location.x;
-                    yLoc = $collisionBlock.button.location.y;
-                }
-                $pointD = new-object PsObject -Property @{
-                    xLoc = $collisionBlock.button.location.x + $collisionBlock.button.width;
-                    yLoc = $collisionBlock.button.location.y;
-                }
-            }
-            1{
-                $pointC = new-object PsObject -Property @{
-                    xLoc = $collisionBlock.button.location.x + $collisionBlock.button.width;
-                    yLoc = $collisionBlock.button.location.y;
-                }
-                $pointD = new-object PsObject -Property @{
-                    xLoc = $collisionBlock.button.location.x + $collisionBlock.button.width;
-                    yLoc = $collisionBlock.button.location.y + $collisionBlock.button.height;
-                }
-            }
             3{
                 $pointC = new-object PsObject -Property @{
-                    xLoc = $collisionBlock.button.location.x;
-                    yLoc = $collisionBlock.button.location.y;
+                    xLoc = $collisionObject.button.location.x + $collisionObject.button.width;
+                    yLoc = $collisionObject.button.location.y;
                 }
                 $pointD = new-object PsObject -Property @{
-                    xLoc = $collisionBlock.button.location.x;
-                    yLoc = $collisionBlock.button.location.y + $collisionBlock.button.height;
+                    xLoc = $collisionObject.button.location.x + $collisionObject.button.width;
+                    yLoc = $collisionObject.button.location.y + $collisionObject.button.height;
                 }
             }
             4{
                 $pointC = new-object PsObject -Property @{
-                    xLoc = $collisionBlock.button.location.x;
-                    yLoc = $collisionBlock.button.location.y + $collisionBlock.button.height;
+                    xLoc = $collisionObject.button.location.x;
+                    yLoc = $collisionObject.button.location.y;
                 }
                 $pointD = new-object PsObject -Property @{
-                    xLoc = $collisionBlock.button.location.x + $collisionBlock.button.width;
-                    yLoc = $collisionBlock.button.location.y + $collisionBlock.button.height;
+                    xLoc = $collisionObject.button.location.x + $collisionObject.button.width;
+                    yLoc = $collisionObject.button.location.y;
+                }
+            }
+            1{
+                $pointC = new-object PsObject -Property @{
+                    xLoc = $collisionObject.button.location.x;
+                    yLoc = $collisionObject.button.location.y;
+                }
+                $pointD = new-object PsObject -Property @{
+                    xLoc = $collisionObject.button.location.x;
+                    yLoc = $collisionObject.button.location.y + $collisionObject.button.height;
+                }
+            }
+            2{
+                $pointC = new-object PsObject -Property @{
+                    xLoc = $collisionObject.button.location.x;
+                    yLoc = $collisionObject.button.location.y + $collisionObject.button.height;
+                }
+                $pointD = new-object PsObject -Property @{
+                    xLoc = $collisionObject.button.location.x + $collisionObject.button.width;
+                    yLoc = $collisionObject.button.location.y + $collisionObject.button.height;
                 }
             }
         }
         # test each wall against the ball vectors
         $testIntersect = Test-LineIntersect $pointA $pointB $pointC $pointD
-        write-host $testIntersect
         if($testIntersect){$direction = $i}
 
     }
@@ -286,29 +307,23 @@ function Test-CollisionDirection($ballXMid, $BallMid, $collisionBlock, $xLoc, $y
 
 }
 
-# CHECK FOR INTERSECTION USING ALGORITHM BASED ON "FASTER LINE SEGMENT INTERSECTION" BY FRANKLIN ANTONIO
+## CHECK FOR INTERSECTION USING ALGORITHM BASED ON "FASTER LINE SEGMENT INTERSECTION" BY FRANKLIN ANTONIO
 function Test-LineIntersect($p1, $p2, $p3, $p4){
     $a = New-SubtractedVector $p2 $p1
     $b = New-SubtractedVector $p3 $p4
     $c = New-SubtractedVector $p1 $p3
-    write-host "p1: $p1   p2: $p2   p3: $p3   p4: $p4"
-    write-host "a: $a   b: $b   c: $c"
 
     $alphaNum = ([float]$b.yLoc * [float]$c.xLoc) - ([float]$b.xLoc * [float]$c.yLoc)
     $betaNum = ([float]$a.xLoc * [float]$c.yLoc) - ([float]$a.yLoc * [float]$c.xLoc)
     $den = ([float]$a.yLoc * [float]$b.xLoc) - ([float]$a.xLoc * [float]$b.yLoc)
-    write-host "AN: $alphaNum    BN: $betaNum   DN: $den"
     $doIntersect = $true
     if($den -eq 0){
         $doIntersect = $false
     } elseif($den -gt 0){
         if($alphaNum -lt 0 -or $alphaNum -gt $den -or $betaNum -lt 0 -or $betaNum -gt $den){
-            write-host "Top Check"
             $doIntersect = $false
         }
-
     } elseif($alphaNum -gt 0 -or $alphaNum -lt $den -or $betaNum -gt 0 -or $betaNum -lt $den){
-        write-host "Bot Check"
         $doIntersect = $false
     }
 
@@ -345,7 +360,6 @@ function New-BallAngle($direction, $ball, $paddle){
             $tempX = $ballX - $paddleX
             $percent = $tempX / $paddleWidth
             $angle = 180 - ([math]::round((160 * $percent) + 10))
-            #write-host "BallX " $ballx "  PaddleX " $paddlex "  Angle " $angle
             $ball.angle = $angle
 
         }
@@ -429,18 +443,22 @@ Function Read-Levels($location){
             $xLoc = $_.split(",")[0]
             $yLoc = $_.split(",")[1]
             $colour = $_.split(",")[2]
-            $width = $_.split(",")[3]
+            $score = $_.split(",")[3]
+            $width = $_.split(",")[4]
             
             if(!$width){
                 $width = 70
             }
-            
+            if(!$score){
+                $score = $null
+            }
             
             $blockObj =  new-object PsObject -Property @{
                 xLoc = $xLoc;
                 yLoc = $yLoc;
                 colour = $colour;
                 width = $width;
+                score = $score
             }
             $currentLevel += $blockObj
         }
@@ -466,26 +484,56 @@ Function Open-PoshBlock($level, $debug = $false){
         $form.Activate()
     })
 
-    ## LOAD LEVEL
+    ## load level
     Function Initialize-Level($level, $form){
         foreach($levelItem in $level){
             $xLoc = $levelItem.xLoc
             $yLoc = $levelItem.yLoc
             $colour = $levelItem.colour
             $width = $levelItem.width
-            $block = New-Block $xLoc $yLoc $colour $width $form
+            if($levelItem.score){$score = $levelItem.score}
+            $block = New-Block $xLoc $yLoc $colour -score $score -width $width -form $form
             [void]$global:currentBlocks.add($block)
         }
     }
     
     $ball = New-Ball -form $form -xLoc 350 -yLoc 600 -angle 140
     if(!$debug){
-        # Create Main ball and Paddle
+        # Create Main ball and Paddle if not in debug mode
         $paddle = New-Paddle -form $form
+    }
+
+    # Return fully drawn label object
+    function New-Label($text, $x, $y, $foreColour, $width, $align){
+        $labelFont = [System.Drawing.Font]::new("Lucida Console", 16)
+        $label = New-Object system.windows.forms.label
+        $label.location = new-object system.drawing.point($x,$y)
+        $label.ForeColor = $foreColour
+        $label.text = $text
+        $label.textalign = $align
+        $label.width = $width
+        $label.font = $labelFont
+        Return $label
     }
 
     # Load Level
     Initialize-Level $level -form $form
+
+    # Draw UI
+    $labelFont = [System.Drawing.Font]::new("Lucida Console", 16)
+    $scoreLabel = New-Label "SCORE -" 570 20 "#FFFFFF" 100 "MiddleRight"
+    $scoreDisplay = New-Label $global:score 670 20 "#FFFFFF" 80 "MiddleRight"
+    $livesLabel = New-Label "- LIVES" 80 20 "#FFFFFF" 100 "MiddleLeft"
+    $livesDisplay = New-Label $global:livesLeft 50 20 "#FFFFFF" 80 "MiddleLeft"
+    $form.controls.addRange(@($scoreLabel,$scoreDisplay,$livesLabel,$livesDisplay))
+
+    # Draw game area
+    $playBackground = New-Object system.windows.forms.groupbox
+    $playBackground.location = new-object System.Drawing.Point([float]$leftXBound,$([float]$topYBound - 10))
+    $tempWidth = [float]$rightXBound - [float]$leftXBound
+    $playBackground.width = $tempWidth + ($ball.width / 2)
+    $playBackground.height = $form.height
+    $form.controls.add($playBackground)
 
     # Timer acts as our main thread, each tick is a single frame
     $Timer = New-Object System.Windows.Forms.Timer
@@ -507,6 +555,8 @@ Function Open-PoshBlock($level, $debug = $false){
     })
     $timer.Start()
 
+    # Hide cursor if the mouse is in the gamewindow
+    $playBackground.Add_MouseEnter({[System.Windows.Forms.Cursor]::Hide()})
     $form.Add_MouseEnter({[System.Windows.Forms.Cursor]::Hide()})
     $form.Add_MouseLeave({[System.Windows.Forms.Cursor]::Show()})
 
