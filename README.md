@@ -19,7 +19,7 @@ For example:
 180,150,#FFF000,10,50
 
 ToDo:
-- [ ] Scoring
+- [x] Scoring
 - [ ] Lives / Game Over
 - [ ] Level Switching
 - [ ] High Score
