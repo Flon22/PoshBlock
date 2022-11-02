@@ -40,12 +40,13 @@ $global:powers = @{
     1="#441ab8"
     2="#6c1ab8"
 }
-$global:powerUpChance = 75
+$global:powerUpChance = 35
 $global:livesLeft = 3
 $global:resetTrigger = $false
 $global:nextLevel = $false
 $global:currentPowerUps = @()
 $global:currentBalls = @()
+$global:doubleScore = $false
 
 ## LEVELS
 $levelLocation = ".\Levels\"
@@ -83,7 +84,7 @@ function New-Ball($xLoc = 0, $yLoc = 0, $angle = 20, $speed = $ballSpeed, $form)
 function New-PowerUp($xLoc = 0, $yLoc = 0, $angle = 270, $speed = $powerUpSpeed, $form){
     # Colour is based on the power which is chosen at random from the hashtable
     #$power = Get-Random -Minimum 0 -Maximum $($global:powers.Count - 1)
-    $power = 0
+    $power = 2
     $colour = $global:powers[$power]
 
     $powerButton = [System.Windows.Forms.Button]::new()
@@ -184,7 +185,6 @@ function Update-PowerUpPosition($powerUp, $paddle, $form, $debug = $false){
 
     # if it collides with button, then activate specific power
     if($powerUpYMid -ge $paddle.yLoc -and $powerUpYMid -le $paddle.yLocBott -and $powerUpXMid -gt $paddle.xLoc -and $powerUpXMid -lt $paddle.xLocRight){
-        write-host "Picked up Power: $($powerUp.power)"
         $powerUp.enabled = $true
 
     }elseif($powerUp.button.location.y -gt $bottomYBound){
@@ -293,7 +293,6 @@ function Test-Collision($xLoc, $yLoc, $ball, $paddle, $form){
 
         # Roll dice and spawn in a Powerup
         $diceRoll = Get-Random -Minimum 0 -Maximum 100
-        write-host $diceroll
         if($diceRoll -lt $global:powerUpChance){
             #Spawn Powerup
             $powerUp = New-PowerUp -xLoc -10 -yLoc -10 -form $form
@@ -304,7 +303,6 @@ function Test-Collision($xLoc, $yLoc, $ball, $paddle, $form){
             $powerUp.yLoc = $spawnY
             $powerUp.button.location = New-Object System.Drawing.Point($powerUp.xLoc,$powerUp.yLoc)
             $global:currentPowerUps += $powerUp
-            write-host "Added. $($global:currentPowerUps.Count)"
         }
 
     }else{
@@ -571,6 +569,9 @@ Function Read-Levels($location){
 
 ## UPDATE SCOREBOARD - SET GLOBAL AND UPDATE UI
 function Update-Score($score){
+    if($global:doubleScore){
+        $score = [float]$score * 2
+    }
     $global:score += $score
     $scoreDisplay.text = $global:score
 }
@@ -704,8 +705,6 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
                     }else{
                         $form.controls.remove($global:currentBalls[$i].button)
                         $global:currentBalls = @($global:currentBalls | where-object{$_ -ne $global:currentBalls[$i]})
-                        write-host "Destroyed Ball"
-                        write-host "#$i of $currentBallsCount | actualCount = $($global:currentBalls.Count)"
                         $currentBallsCount = $global:currentBalls.Count
                     }
                 }
@@ -716,13 +715,15 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
                 $currentPowerUpCount = $global:currentPowerUps.Count
                 
                 for($i = 0; $i -lt $currentPowerUpCount; $i++){
-                    $global:currentPowerUps[$i] = Update-PowerUpPosition $global:currentPowerUps[$i] $paddle $form $debug
-
+                    if(!$global:currentPowerUps[$i].enabled){
+                        $global:currentPowerUps[$i] = Update-PowerUpPosition $global:currentPowerUps[$i] $paddle $form $debug
+                    }
                     if($global:currentPowerUps[$i].enabled){
+                        $form.controls.remove($global:currentPowerUps[$i].button)
                         Switch($global:currentPowerUps[$i].power){
                             0{
-                                write-host "MultiBall"
                                 # MultiBall
+                                write-host "MultiBall"
                                 $global:currentPowerUps[$i].enabled = $false
                                 $ball = New-Ball -form $form -xLoc $global:currentBalls[0].button.location.x -yLoc $global:currentBalls[0].button.location.y -angle $([float]$global:currentBalls[0].angle + 20)
                                 $global:currentBalls += $ball
@@ -730,15 +731,50 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
                             }
                             1{
                                 # Extended paddle
+                                if($global:currentPowerUps[$i].timer -eq 100){
+                                    write-host "Extended Paddle"
+                                    $paddle.button.location.x = [float]$paddle.button.location.x - 10
+                                    $paddle.button.width = [float]$paddle.button.width + 20
+                                    $global:currentPowerUps[$i].timer -= 0.2
+
+                                }elseif($global:currentPowerUps[$i].timer -le 0){
+                                    $paddle.button.location.x = [float]$paddle.button.location.x + 10
+                                    $paddle.button.width = [float]$paddle.button.width - 20
+                                    $global:currentPowerUps[$i].enabled = $false
+                                    $global:currentPowerUps[$i].destroy = $true
+
+                                }else{
+                                    $global:currentPowerUps[$i].timer -= 0.2
+
+                                }
+                                
                             }
                             2{
                                 # Mini paddle, double score
+                                if($global:currentPowerUps[$i].timer -eq 100){
+                                    write-host "Mini Paddle"
+                                    $paddle.button.location.x = [float]$paddle.button.location.x + 10
+                                    $paddle.button.width = [float]$paddle.button.width - 20
+                                    $global:currentPowerUps[$i].timer -= 0.2
+                                    $global:doubleScore = $true
+
+                                }elseif($global:currentPowerUps[$i].timer -le 0){
+                                    $paddle.button.location.x = [float]$paddle.button.location.x = 10
+                                    $paddle.button.width = [float]$paddle.button.width + 20
+                                    $global:currentPowerUps[$i].enabled = $false
+                                    $global:currentPowerUps[$i].destroy = $true
+                                    $global:doubleScore = $false
+
+                                }else{
+                                    $global:currentPowerUps[$i].timer -= 0.2
+                                    $global:doubleScore = $true
+
+                                }
                             }
                         }
-                        $global:currentPowerUps[$i].destroy = $true
+                        
                     }
                     if($global:currentPowerUps[$i].destroy){
-                        $form.controls.remove($global:currentPowerUps[$i].button)
                         $global:currentPowerUps = @($global:currentPowerUps | where-object {$_ -ne $global:currentPowerUps[$i]})
                         $currentPowerUpCount = $global:currentPowerUps.Count
 
