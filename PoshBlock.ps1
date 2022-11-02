@@ -583,6 +583,7 @@ Function Open-PoshBlock($level, $debug = $false){
     $Timer.add_tick({
         if($global:nextLevel){
             write-host "Next Level"
+            $global:nextLevel = $false
             $Timer.stop()
             $form.close()
 
