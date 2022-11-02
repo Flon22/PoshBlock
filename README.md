@@ -15,7 +15,7 @@ Each row defines a new block piece.
 
 For example:  
 100,150,3  
-180,150,3,,50
+180,150,3,,50  
 180,150,#FFF000,10,50
 
 ToDo:
