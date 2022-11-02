@@ -83,8 +83,8 @@ function New-Ball($xLoc = 0, $yLoc = 0, $angle = 20, $speed = $ballSpeed, $form)
 ## GENERATE A NEW POWERUP
 function New-PowerUp($xLoc = 0, $yLoc = 0, $angle = 270, $speed = $powerUpSpeed, $form){
     # Colour is based on the power which is chosen at random from the hashtable
-    #$power = Get-Random -Minimum 0 -Maximum $($global:powers.Count - 1)
-    $power = 2
+    $power = Get-Random -Minimum 0 -Maximum $($global:powers.Count - 1)
+    #$power = 2
     $colour = $global:powers[$power]
 
     $powerButton = [System.Windows.Forms.Button]::new()
