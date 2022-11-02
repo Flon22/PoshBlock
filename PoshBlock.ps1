@@ -17,6 +17,7 @@ $bottomYBound = 700
 $frameTime = 12
 $paddleSpeed = 10
 $ballSpeed = 7
+$powerUpSpeed = 5
 
 ## LOGIC
 $global:gameEnabled = $true
@@ -34,10 +35,16 @@ $global:blockColours = @{
     9="#9219c2"
     0="#d40db2"
 }
-$global:powerUpChance = 10
+$global:powers = @{
+    0="#14a35e"
+    1="#441ab8"
+    2="#6c1ab8"
+}
+$global:powerUpChance = 25
 $global:livesLeft = 3
 $global:resetTrigger = $false
 $global:nextLevel = $false
+$global:currentPowerUps = @()
 
 ## LEVELS
 $levelLocation = ".\Levels\"
@@ -69,6 +76,35 @@ function New-Ball($xLoc = 0, $yLoc = 0, $angle = 20, $speed = $ballSpeed, $form)
 
 }
 
+## GENERATE A NEW POWERUP
+function New-PowerUp($xLoc = 0, $yLoc = 0, $angle = 270, $speed = $powerUpSpeed, $form){
+    $power = Get-Random -Minimum 0 -Maximum $($global:powers.Count - 1)
+    $colour = $global:powers[$power]
+    $powerButton = [System.Windows.Forms.Button]::new()
+    $powerButton.text = ""
+    $powerButton.FlatAppearance.BorderSize = 0
+    $powerButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $powerButton.AutoSize = $false
+    $powerButton.width = 7
+    $powerButton.height = 5
+    $powerButton.location = New-Object System.Drawing.Point($xLoc,$yLoc)
+    $powerButton.BackColor = $colour
+    $form.controls.add($powerButton)
+    $powerButton.BringToFront()
+
+    $powerUp = New-Object PsObject -Property @{
+        xLoc = $xLoc;
+        yLoc = $yLoc;
+        angle = $angle;
+        speed = $speed;
+        button = $powerButton;
+        power = $power;
+        destroy = $false;
+        guid = New-Guid;
+        }
+    return $powerUp
+
+}
 
 ## GENERATE A NEW BLOCK
 function New-Block($xLoc = 100, $yLoc = 100, $colour, $width, $form, $score = 10){
@@ -138,6 +174,31 @@ function ConvertTo-Degrees($angle){
 
 function ConvertTo-Radians($angle){
     return $angle * ([math]::pi / 180)
+}
+
+## UPDATE A GIVEN POWERUPS POSITION
+function Update-PowerUpPosition($powerUp, $paddle, $form, $debug = $false){
+    # Generate new coordinates and find center of object
+    $tempYLocPUp = New-YLoc $powerUp
+    $tempXLocPUp = $powerUp.button.location.x
+    $powerUpXMid = [float]$powerUp.button.location.x + ([float]$powerUp.button.width / 2)
+    $powerUpYMid = [float]$tempYLocPUp + ([float]$PowerUp.button.height / 2)
+
+    # if it collides with button, then activate specific power
+    if($powerUpYMid -ge $paddle.yLoc -and $powerUpYMid -le $paddle.yLocBott -and $powerUpXMid -gt $paddle.xLoc -and $powerUpXMid -lt $paddle.xLocRight){
+        write-host "Picked up Power: $($powerUp.power)"
+        $powerUp.destroy = $true
+
+    }elseif($powerUp.button.location.y -gt $bottomYBound){
+        Write-Host "Removing $($powerup.guid) - $($powerUp.button.location.y)"
+        $powerUp.destroy = $true
+
+    }
+    # update Powerup location
+    $powerUp.yLoc = $tempYLocPUp
+    $powerUp.xLoc = $tempXLocPUp
+    $powerUp.button.location = New-Object System.Drawing.Point($powerUp.xLoc,$powerUp.yLoc)
+    return $powerUp
 }
 
 ## UPDATE A GIVEN BALLS POSITION
@@ -217,16 +278,25 @@ function Test-Collision($xLoc, $yLoc, $ball, $paddle, $form){
         # Update score variable and UI
         Update-Score $collisionBlock[0].score
 
-        if($global:currentBlocks.length -eq 0){
+        if($global:currentBlocks.Count -eq 0){
             $global:nextLevel = $true
 
         }
 
         # Roll dice and spawn in a Powerup
         $diceRoll = Get-Random -Minimum 0 -Maximum 100
+        write-host $diceroll
         if($diceRoll -lt $global:powerUpChance){
             #Spawn Powerup
-
+            $powerUp = New-PowerUp -xLoc -10 -yLoc -10 -form $form
+            
+            $spawnX = [float]$collisionBlock[0].button.location.x + ([float]$collisionBlock[0].button.width / 2) - ([float]$powerUp.width / 2)
+            $spawnY = [float]$collisionBlock[0].button.location.y + ([float]$collisionBlock[0].button.height / 2) - ([float]$powerUp.height / 2)
+            $powerUp.xLoc = $spawnX
+            $powerUp.yLoc = $spawnY
+            $powerUp.button.location = New-Object System.Drawing.Point($powerUp.xLoc,$powerUp.yLoc)
+            $global:currentPowerUps += $powerUp
+            write-host "Added. $($global:currentPowerUps.Count)"
         }
 
     }else{
@@ -250,7 +320,6 @@ function Test-Collision($xLoc, $yLoc, $ball, $paddle, $form){
             {$_ -ge $paddle.yLoc -and $_ -le $paddle.yLocBott -and $ballXMid -gt $paddle.xLoc -and $ballXMid -lt $paddle.xLocRight}{
                 $direction = Test-CollisionDirection $ballXMid $ballYMid $paddle $currBallXMid $currBallYMid
                 if($direction -eq 4){$direction = 5}
-                #write-host "COLLISION - $direction"
                 
             }
         }
@@ -327,7 +396,7 @@ function Test-CollisionDirection($ballXMid, $BallMid, $collisionObject, $xLoc, $
 
 }
 
-## CHECK FOR INTERSECTION USING ALGORITHM BASED ON "FASTER LINE SEGMENT INTERSECTION" BY FRANKLIN ANTONIO
+## CHECK FOR INTERSECTION USING ALGORITHM BASED FRANKLIN ANTONIO'S INTERSECTION ALGORITHM
 function Test-LineIntersect($p1, $p2, $p3, $p4){
     $a = New-SubtractedVector $p2 $p1
     $b = New-SubtractedVector $p3 $p4
@@ -446,7 +515,6 @@ function Update-PaddlePosition($paddle, $form){
     $paddle.xLocRight = $paddle.button.location.x + $paddle.button.width
     # Update paddle position
     $paddle.button.location = New-Object System.Drawing.Point($padXPos, $paddle.button.location.y)
-    #write-host "Paddle x: $($paddle.xloc)   y: $($paddle.yloc)   x2: $($paddle.xLocRight)   y2: $($paddle.yLocBott)"
 
     return $paddle
 }
@@ -490,10 +558,11 @@ Function Read-Levels($location){
     return $allLevels
 }
 
+
 ##### MAIN FORM FUNCTIONS
 
 ## MAIN FORM
-Function Open-PoshBlock($level, $debug = $false){
+Function Open-PoshBlock($level, $debug = $false, $frameTime){
     $form                                  = New-Object system.Windows.Forms.Form
     $form.ClientSize                       = "800,700"
     $form.TopMost                          = $true
@@ -596,6 +665,18 @@ Function Open-PoshBlock($level, $debug = $false){
             }
             # On each frame, update the ball and paddle positions
             $ball = Update-BallPosition $ball $paddle $form $debug
+            if($global:currentPowerUps.count -gt 0){
+                $currentPowerUpCount = $global:currentPowerUps.Count
+                
+                for($i = 0; $i -lt $currentPowerUpCount; $i++){
+                    $global:currentPowerUps[$i] = Update-PowerUpPosition $global:currentPowerUps[$i] $paddle $form $debug
+                    if($global:currentPowerUps[$i].destroy){
+                        $form.controls.remove($global:currentPowerUps[$i].button)
+                        $global:currentPowerUps = @($global:currentPowerUps | where-object {$_.guid -ne $global:currentPowerUps[$i].guid})
+                    }
+                }
+
+            }
             if(!$debug){
                 $paddle = Update-PaddlePosition $paddle $form
             }
@@ -626,7 +707,7 @@ $levels = Read-Levels $levelLocation
 ## SEND EACH LEVEL TO USER
 foreach($key in $levels.keys){
     if($global:gameEnabled){
-        Open-PoshBlock $levels[$key] $false
+        Open-PoshBlock $levels[$key] $false $frameTime
     }
 }
 
