@@ -37,6 +37,7 @@ $global:blockColours = @{
 $global:powerUpChance = 10
 $global:livesLeft = 3
 $global:resetTrigger = $false
+$global:nextLevel = $false
 
 ## LEVELS
 $levelLocation = ".\Levels\"
@@ -170,7 +171,6 @@ function Update-BallPosition($ball, $paddle, $form, $debug = $false){
             }
         }
     }elseif($collision -eq 6){
-
         if($global:livesLeft -gt 0){
             ## reset game
             $global:resetTrigger = $true
@@ -216,6 +216,11 @@ function Test-Collision($xLoc, $yLoc, $ball, $paddle, $form){
         
         # Update score variable and UI
         Update-Score $collisionBlock[0].score
+
+        if($global:currentBlocks.length -eq 0){
+            $global:nextLevel = $true
+
+        }
 
         # Roll dice and spawn in a Powerup
         $diceRoll = Get-Random -Minimum 0 -Maximum 100
@@ -576,24 +581,28 @@ Function Open-PoshBlock($level, $debug = $false){
     $Timer = New-Object System.Windows.Forms.Timer
     $Timer.interval = $frameTime
     $Timer.add_tick({
+        if($global:nextLevel){
+            write-host "Next Level"
+            $Timer.stop()
+            $form.close()
+
+        }
         if($global:gameEnabled){
             if($global:resetTrigger){
                 Reset-GameBoard $form $paddle $playBackground $ball $livesDisplay
                 $global:resetTrigger = $false
-                
-                
+
             }
             # On each frame, update the ball and paddle positions
             $ball = Update-BallPosition $ball $paddle $form $debug
             if(!$debug){
                 $paddle = Update-PaddlePosition $paddle $form
-            
             }
 
         }else{
-            write-host "Game Over!"
             $Timer.stop()
             $form.close()
+
         }
     })
     $timer.Start()
@@ -615,6 +624,11 @@ $levels = Read-Levels $levelLocation
 
 ## SEND EACH LEVEL TO USER
 foreach($key in $levels.keys){
-    Open-PoshBlock $levels[$key] $false
-
+    if($global:gameEnabled){
+        Open-PoshBlock $levels[$key] $false
+    }
 }
+
+write-host "Game Over!"
+write-host "Score: $global:score"
+pause
