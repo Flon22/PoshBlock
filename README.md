@@ -21,7 +21,8 @@ For example:
 ToDo:
 - [x] Scoring
 - [x] Lives / Game Over
-- [ ] Level Switching
+- [x] Level Switching
+- [ ] Powerups
 - [ ] High Score
 - [ ] More Levels
 
