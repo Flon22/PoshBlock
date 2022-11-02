@@ -50,8 +50,8 @@ function New-Ball($xLoc = 0, $yLoc = 0, $angle = 20, $speed = $ballSpeed, $form)
     $button.FlatAppearance.BorderSize = 0
     $button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $button.AutoSize = $false
-    $button.width = 13
-    $button.height = 13
+    $button.width = 10
+    $button.height = 10
     $button.location = New-Object System.Drawing.Point($xLoc,$yLoc)
     $button.BackColor = "#359fb5"
     $form.controls.add($button)
@@ -111,11 +111,15 @@ function New-Paddle($xLoc = 350, $yLoc = 650, $speed = $paddleSpeed, $form){
     $button.location = New-Object System.Drawing.Point($xLoc,$yLoc)
     $button.BackColor = "#890D58"
     $form.controls.add($button)
+
     $xLocRight = $xLoc + $button.width
+    $yLocBott = [int]$yLoc + 20
+
     $paddle = new-object PsObject -Property @{
         xLoc = $xLoc;
         yLoc = $yLoc;
         xLocRight = $xLocRight;
+        yLocBott = $yLocBott;
         speed = $speed;
         button = $button;
     }
@@ -186,10 +190,10 @@ function Update-Score($score){
 function Test-Collision($xLoc, $yLoc, $ball, $paddle, $form){
     # Direction is which wall it has bounced off of. 1 = Right wall, 2 = Top wall, 3 = Left Wall, 4 = Bottom
     $direction = ""
-    $ballXMid = $xLoc + ($ball.button.width / 2)
-    $ballYMid = $yLoc + ($ball.button.height / 2)
-    $currBallXMid = $ball.button.location.x + ($ball.button.width / 2)
-    $currBallYMid = $ball.button.location.y + ($ball.button.width / 2)
+    $ballXMid = [float]$xLoc + ([float]$ball.button.width / 2)
+    $ballYMid = [float]$yLoc + ([float]$ball.button.height / 2)
+    $currBallXMid = [float]$ball.button.location.x + ([float]$ball.button.width / 2)
+    $currBallYMid = [float]$ball.button.location.y + ([float]$ball.button.height / 2)
 
     # Returns all objects that the ball will collide with on the next frame
     $collisionBlock = $global:currentBlocks | where-object {[float]$_.xLoc -lt [float]$ballXMid -and [float]$_.xLocRight -gt [float]$ballXMid -and [float]$_.yLoc -lt [float]$ballYMid -and [float]$_.yLocBott -gt [float]$ballYMid}
@@ -214,8 +218,9 @@ function Test-Collision($xLoc, $yLoc, $ball, $paddle, $form){
         }
 
     }else{
+        #write-host "BALL   x: $ballXMid   y: $ballYMid"
         # If there isnt a block collision, then check for a collision with the boundaries
-        Switch ($xLoc){
+        Switch ($ballXMid){
             {$_ + $ball.button.width -ge $rightXBound} {
                     $direction = 1 # Collision with right boundary
                 }
@@ -223,7 +228,7 @@ function Test-Collision($xLoc, $yLoc, $ball, $paddle, $form){
                     $direction = 3 # Collision with left boundary
                 } 
         }
-        Switch ($yLoc){
+        Switch ($ballYMid){
             {$_ -le $topYBound} {
                     $direction = 2 # Collision with top boundary
                 }
@@ -231,9 +236,11 @@ function Test-Collision($xLoc, $yLoc, $ball, $paddle, $form){
                     $direction = 6 # a collision with the bottom boundary is a game over/lose life
                     break
                 }
-            {$_ -ge $paddle.button.location.y - ($paddle.button.height / 2)}{
+            {$_ -ge $paddle.yLoc -and $_ -le $paddle.yLocBott -and $ballXMid -gt $paddle.xLoc -and $ballXMid -lt $paddle.xLocRight}{
                 $direction = Test-CollisionDirection $ballXMid $ballYMid $paddle $currBallXMid $currBallYMid
                 if($direction -eq 4){$direction = 5}
+                #write-host "COLLISION - $direction"
+                
             }
         }
     }
@@ -300,8 +307,10 @@ function Test-CollisionDirection($ballXMid, $BallMid, $collisionObject, $xLoc, $
         }
         # test each wall against the ball vectors
         $testIntersect = Test-LineIntersect $pointA $pointB $pointC $pointD
-        if($testIntersect){$direction = $i}
-
+        if($testIntersect){
+            $direction = $i
+        }
+        
     }
     return $direction
 
@@ -422,9 +431,11 @@ function Update-PaddlePosition($paddle, $form){
         }
 
     }
+    $paddle.xLoc = $padXPos
     $paddle.xLocRight = $paddle.button.location.x + $paddle.button.width
     # Update paddle position
     $paddle.button.location = New-Object System.Drawing.Point($padXPos, $paddle.button.location.y)
+    #write-host "Paddle x: $($paddle.xloc)   y: $($paddle.yloc)   x2: $($paddle.xLocRight)   y2: $($paddle.yLocBott)"
 
     return $paddle
 }
@@ -497,11 +508,9 @@ Function Open-PoshBlock($level, $debug = $false){
         }
     }
     
+    # Create Main ball and Paddle if not in debug mode
+    $paddle = New-Paddle -form $form
     $ball = New-Ball -form $form -xLoc 350 -yLoc 600 -angle 140
-    if(!$debug){
-        # Create Main ball and Paddle if not in debug mode
-        $paddle = New-Paddle -form $form
-    }
 
     # Return fully drawn label object
     function New-Label($text, $x, $y, $foreColour, $width, $align){
