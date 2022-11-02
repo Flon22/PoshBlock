@@ -40,11 +40,12 @@ $global:powers = @{
     1="#441ab8"
     2="#6c1ab8"
 }
-$global:powerUpChance = 25
+$global:powerUpChance = 75
 $global:livesLeft = 3
 $global:resetTrigger = $false
 $global:nextLevel = $false
 $global:currentPowerUps = @()
+$global:currentBalls = @()
 
 ## LEVELS
 $levelLocation = ".\Levels\"
@@ -54,23 +55,25 @@ $levelLocation = ".\Levels\"
 
 ## GENERATE A NEW BALL
 function New-Ball($xLoc = 0, $yLoc = 0, $angle = 20, $speed = $ballSpeed, $form){
-    $button = [System.Windows.Forms.Button]::new()
-    $button.text = ""
-    $button.FlatAppearance.BorderSize = 0
-    $button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-    $button.AutoSize = $false
-    $button.width = 10
-    $button.height = 10
-    $button.location = New-Object System.Drawing.Point($xLoc,$yLoc)
-    $button.BackColor = "#359fb5"
-    $form.controls.add($button)
+    $ballButton = [System.Windows.Forms.Button]::new()
+    $ballButton.text = ""
+    $ballButton.FlatAppearance.BorderSize = 0
+    $ballButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $ballButton.AutoSize = $false
+    $ballButton.width = 10
+    $ballButton.height = 10
+    $ballButton.location = New-Object System.Drawing.Point($xLoc,$yLoc)
+    $ballButton.BackColor = "#359fb5"
+    $form.controls.add($ballButton)
+    $ballButton.BringToFront()
 
     $ball = New-Object PsObject -Property @{
         xLoc = $xLoc;
         yLoc = $yLoc;
         angle = $angle;
         speed = $speed;
-        button = $button;
+        button = $ballButton;
+        destroy = $false;
         }
     return $ball
 
@@ -78,8 +81,11 @@ function New-Ball($xLoc = 0, $yLoc = 0, $angle = 20, $speed = $ballSpeed, $form)
 
 ## GENERATE A NEW POWERUP
 function New-PowerUp($xLoc = 0, $yLoc = 0, $angle = 270, $speed = $powerUpSpeed, $form){
-    $power = Get-Random -Minimum 0 -Maximum $($global:powers.Count - 1)
+    # Colour is based on the power which is chosen at random from the hashtable
+    #$power = Get-Random -Minimum 0 -Maximum $($global:powers.Count - 1)
+    $power = 0
     $colour = $global:powers[$power]
+
     $powerButton = [System.Windows.Forms.Button]::new()
     $powerButton.text = ""
     $powerButton.FlatAppearance.BorderSize = 0
@@ -100,7 +106,9 @@ function New-PowerUp($xLoc = 0, $yLoc = 0, $angle = 270, $speed = $powerUpSpeed,
         button = $powerButton;
         power = $power;
         destroy = $false;
+        enabled = $false;
         guid = New-Guid;
+        timer = 100;
         }
     return $powerUp
 
@@ -164,17 +172,7 @@ function New-Paddle($xLoc = 350, $yLoc = 650, $speed = $paddleSpeed, $form){
     return $paddle
 }
 
-
-##### BALL MOVEMENT FUNCTIONS
-
-## CONVERT BETWEEN DEGREES AND RADIANS
-function ConvertTo-Degrees($angle){
-    return $angle * (180 / [math]::pi)
-}
-
-function ConvertTo-Radians($angle){
-    return $angle * ([math]::pi / 180)
-}
+##### POWERUP FUNCTIONS
 
 ## UPDATE A GIVEN POWERUPS POSITION
 function Update-PowerUpPosition($powerUp, $paddle, $form, $debug = $false){
@@ -187,10 +185,9 @@ function Update-PowerUpPosition($powerUp, $paddle, $form, $debug = $false){
     # if it collides with button, then activate specific power
     if($powerUpYMid -ge $paddle.yLoc -and $powerUpYMid -le $paddle.yLocBott -and $powerUpXMid -gt $paddle.xLoc -and $powerUpXMid -lt $paddle.xLocRight){
         write-host "Picked up Power: $($powerUp.power)"
-        $powerUp.destroy = $true
+        $powerUp.enabled = $true
 
     }elseif($powerUp.button.location.y -gt $bottomYBound){
-        Write-Host "Removing $($powerup.guid) - $($powerUp.button.location.y)"
         $powerUp.destroy = $true
 
     }
@@ -201,11 +198,24 @@ function Update-PowerUpPosition($powerUp, $paddle, $form, $debug = $false){
     return $powerUp
 }
 
+
+##### BALL FUNCTIONS
+
+## CONVERT BETWEEN DEGREES AND RADIANS
+function ConvertTo-Degrees($angle){
+    return $angle * (180 / [math]::pi)
+}
+
+function ConvertTo-Radians($angle){
+    return $angle * ([math]::pi / 180)
+}
+
 ## UPDATE A GIVEN BALLS POSITION
 function Update-BallPosition($ball, $paddle, $form, $debug = $false){
     # Debug
     if($debug){
         # Get current cursor position and normalise it to the center of the current form location
+        # use cursor as ball position if debug is set
         $cursorXPos = [System.Windows.Forms.Cursor]::Position.x
         $cursorYPos = [system.windows.forms.cursor]::Position.Y
         $tempXLoc = $cursorXPos - $form.location.x
@@ -216,14 +226,16 @@ function Update-BallPosition($ball, $paddle, $form, $debug = $false){
         $tempYLoc = New-YLoc $ball
     
     }
+    
+    # Check collision on new coordinates - return bounce direction
     $collision = ""
-    # Check collision on new coordinates
     $collision = Test-Collision $tempXLoc $tempYLoc $ball $paddle $form
     
     # if it collides, then calulate the new angle and redo coordinates
     if($collision -ne "" -and $collision -ne 6){
+        # get new angle based on collision direction
         $ball = New-BallAngle $collision $ball $paddle
-        Switch($direction){
+        Switch($collision){
             {$_ -eq 1 -or $_ -eq 3}{
                 $tempXLoc = New-XLoc $ball
             }
@@ -232,10 +244,12 @@ function Update-BallPosition($ball, $paddle, $form, $debug = $false){
             }
         }
     }elseif($collision -eq 6){
+        # collision = 6 means the ball has hit the bottom border and is out of bounds
         if($global:livesLeft -gt 0){
-            ## reset game
-            $global:resetTrigger = $true
+            # Sets the ball to destroy itself
+            $ball.destroy = $true
         }else{
+            # if the player has no further lives then the game is ended
             $global:gameEnabled = $false
         }
         
@@ -246,12 +260,6 @@ function Update-BallPosition($ball, $paddle, $form, $debug = $false){
     $ball.button.location = New-Object System.Drawing.Point($ball.xLoc,$ball.yLoc)
     return $ball
 
-}
-
-## UPDATE SCOREBOARD
-function Update-Score($score){
-    $global:score += $score
-    $scoreDisplay.text = $global:score
 }
 
 ## CHECK COLLISION FOR BALL ON A GIVEN X & Y COORDINATE
@@ -463,7 +471,7 @@ function New-BallAngle($direction, $ball, $paddle){
         }
 
     
-    }while($ball.angle -gt 360 -or $ball.angle -lt 0)    
+    }while(($ball.angle -gt 360 -or $ball.angle -lt 0) -and $null -ne $ball.angle)    
     return $ball
 }
 
@@ -559,7 +567,19 @@ Function Read-Levels($location){
 }
 
 
-##### MAIN FORM FUNCTIONS
+##### UI FUNCTIONS
+
+## UPDATE SCOREBOARD - SET GLOBAL AND UPDATE UI
+function Update-Score($score){
+    $global:score += $score
+    $scoreDisplay.text = $global:score
+}
+
+ ## UPDATE PLAYER LIVES COUNTER = SET GLOBAL AND UPDATE UI
+function Update-Lives($livesDisplay){
+    $global:livesLeft--
+    $livesDisplay.text = [float]$global:LivesLeft
+}
 
 ## MAIN FORM
 Function Open-PoshBlock($level, $debug = $false, $frameTime){
@@ -588,10 +608,6 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
         }
     }
     
-    # Create Main ball and Paddle if not in debug mode
-    $paddle = New-Paddle -form $form
-    $ball = New-Ball -form $form -xLoc 350 -yLoc 600 -angle 130
-
     # Return fully drawn label object
     function New-Label($text, $x, $y, $foreColour, $width, $align){
         $labelFont = [System.Drawing.Font]::new("Lucida Console", 16)
@@ -605,6 +621,7 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
         Return $label
     }
 
+    # Return GroupBox as background
     function New-PlayBackground(){
         $playBackground = New-Object system.windows.forms.groupbox
         $playBackground.location = new-object System.Drawing.Point([float]$leftXBound,$([float]$topYBound - 10))
@@ -615,21 +632,32 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
         return $playBackground
     }
 
-    function Reset-GameBoard($form, $paddle, $playBackground, $ball, $livesDisplay){
+    # Reset the UI after a life is lost
+    function Reset-GameBoard($form, $paddle, $playBackground, $livesDisplay){
+        # loop though current balls in play and remove from form
+        $global:currentBalls | foreach-object {
+            $form.controls.remove($_.button)
+        }
         $form.controls.remove($paddle.button)
-        $form.controls.remove($ball.button)
         $form.controls.remove($playBackground)
-        Set-Variable -name ball -scope 2 -value $(New-Ball -form $form -xLoc 350 -yLoc 600 -angle 140)
+
+        # Create new ball array and populate with new ball
+        $global:currentBalls = @()
+        $ball = New-Ball -form $form -xLoc 350 -yLoc 600 -angle 140
+        $global:currentBalls += $ball
+
+        # Set variables with Scope 2 - this sets the values in the form scope (not the best way to do this I know.)
         Set-Variable -name paddle -scope 2 -value $(New-Paddle -form $form)
         Set-Variable -name playBackground -scope 2 -value $(New-PlayBackground)
 
+        # Update the amount of lives displayed in UI
         Update-Lives $livesDisplay
     }
 
-    function Update-Lives($livesDisplay){
-        $global:livesLeft--
-        $livesDisplay.text = [float]$global:LivesLeft
-    }
+    # Create Main ball and Paddle 
+    $paddle = New-Paddle -form $form
+    $ball = New-Ball -form $form -xLoc 350 -yLoc 600 -angle 130
+    $global:currentBalls += $ball
 
     # Load Level
     Initialize-Level $level -form $form
@@ -653,26 +681,67 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
         if($global:nextLevel){
             write-host "Next Level"
             $global:nextLevel = $false
+            $global:currentBalls = @()
+            $global:currentPowerUps = @()
             $Timer.stop()
             $form.close()
 
         }
         if($global:gameEnabled){
             if($global:resetTrigger){
-                Reset-GameBoard $form $paddle $playBackground $ball $livesDisplay
+                Reset-GameBoard $form $paddle $playBackground $livesDisplay
                 $global:resetTrigger = $false
 
             }
+            $currentBallsCount = $global:currentBalls.Count
+            for($i = 0; $i -lt $currentBallsCount; $i++){
+                $global:currentBalls[$i] = Update-BallPosition $global:currentBalls[$i] $paddle $form $debug
+                if($global:currentBalls[$i].destroy){
+                    if($currentBallsCount -eq 1){
+                        ## reset game - causes player to lose a life
+                        write-host "lose life"
+                        $global:resetTrigger = $true
+                    }else{
+                        $form.controls.remove($global:currentBalls[$i].button)
+                        $global:currentBalls = @($global:currentBalls | where-object{$_ -ne $global:currentBalls[$i]})
+                        write-host "Destroyed Ball"
+                        write-host "#$i of $currentBallsCount | actualCount = $($global:currentBalls.Count)"
+                        $currentBallsCount = $global:currentBalls.Count
+                    }
+                }
+            }
             # On each frame, update the ball and paddle positions
-            $ball = Update-BallPosition $ball $paddle $form $debug
+            #$ball = Update-BallPosition $ball $paddle $form $debug
             if($global:currentPowerUps.count -gt 0){
                 $currentPowerUpCount = $global:currentPowerUps.Count
                 
                 for($i = 0; $i -lt $currentPowerUpCount; $i++){
                     $global:currentPowerUps[$i] = Update-PowerUpPosition $global:currentPowerUps[$i] $paddle $form $debug
+
+                    if($global:currentPowerUps[$i].enabled){
+                        Switch($global:currentPowerUps[$i].power){
+                            0{
+                                write-host "MultiBall"
+                                # MultiBall
+                                $global:currentPowerUps[$i].enabled = $false
+                                $ball = New-Ball -form $form -xLoc $global:currentBalls[0].button.location.x -yLoc $global:currentBalls[0].button.location.y -angle $([float]$global:currentBalls[0].angle + 20)
+                                $global:currentBalls += $ball
+                                
+                            }
+                            1{
+                                # Extended paddle
+                            }
+                            2{
+                                # Mini paddle, double score
+                            }
+                        }
+                        $global:currentPowerUps[$i].destroy = $true
+                    }
                     if($global:currentPowerUps[$i].destroy){
                         $form.controls.remove($global:currentPowerUps[$i].button)
-                        $global:currentPowerUps = @($global:currentPowerUps | where-object {$_.guid -ne $global:currentPowerUps[$i].guid})
+                        $global:currentPowerUps = @($global:currentPowerUps | where-object {$_ -ne $global:currentPowerUps[$i]})
+                        $currentPowerUpCount = $global:currentPowerUps.Count
+
                     }
                 }
 
