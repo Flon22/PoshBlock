@@ -20,7 +20,7 @@ For example:
 
 ToDo:
 - [x] Scoring
-- [ ] Lives / Game Over
+- [x] Lives / Game Over
 - [ ] Level Switching
 - [ ] High Score
 - [ ] More Levels
