@@ -36,6 +36,7 @@ $global:blockColours = @{
 }
 $global:powerUpChance = 10
 $global:livesLeft = 3
+$global:resetTrigger = $false
 
 ## LEVELS
 $levelLocation = ".\Levels\"
@@ -153,7 +154,7 @@ function Update-BallPosition($ball, $paddle, $form, $debug = $false){
         $tempYLoc = New-YLoc $ball
     
     }
-    
+    $collision = ""
     # Check collision on new coordinates
     $collision = Test-Collision $tempXLoc $tempYLoc $ball $paddle $form
     
@@ -169,13 +170,19 @@ function Update-BallPosition($ball, $paddle, $form, $debug = $false){
             }
         }
     }elseif($collision -eq 6){
-        $global:gameEnabled = $false
+
+        if($global:livesLeft -gt 0){
+            ## reset game
+            $global:resetTrigger = $true
+        }else{
+            $global:gameEnabled = $false
+        }
+        
     }
     # update ball location
     $ball.yLoc = $tempYLoc
     $ball.xLoc = $tempXLoc
     $ball.button.location = New-Object System.Drawing.Point($ball.xLoc,$ball.yLoc)
-        
     return $ball
 
 }
@@ -218,7 +225,6 @@ function Test-Collision($xLoc, $yLoc, $ball, $paddle, $form){
         }
 
     }else{
-        #write-host "BALL   x: $ballXMid   y: $ballYMid"
         # If there isnt a block collision, then check for a collision with the boundaries
         Switch ($ballXMid){
             {$_ + $ball.button.width -ge $rightXBound} {
@@ -510,7 +516,7 @@ Function Open-PoshBlock($level, $debug = $false){
     
     # Create Main ball and Paddle if not in debug mode
     $paddle = New-Paddle -form $form
-    $ball = New-Ball -form $form -xLoc 350 -yLoc 600 -angle 140
+    $ball = New-Ball -form $form -xLoc 350 -yLoc 600 -angle 130
 
     # Return fully drawn label object
     function New-Label($text, $x, $y, $foreColour, $width, $align){
@@ -525,6 +531,32 @@ Function Open-PoshBlock($level, $debug = $false){
         Return $label
     }
 
+    function New-PlayBackground(){
+        $playBackground = New-Object system.windows.forms.groupbox
+        $playBackground.location = new-object System.Drawing.Point([float]$leftXBound,$([float]$topYBound - 10))
+        $tempWidth = [float]$rightXBound - [float]$leftXBound
+        $playBackground.width = $tempWidth + ($ball.width / 2)
+        $playBackground.height = $form.height
+        $form.controls.add($playBackground)
+        return $playBackground
+    }
+
+    function Reset-GameBoard($form, $paddle, $playBackground, $ball, $livesDisplay){
+        $form.controls.remove($paddle.button)
+        $form.controls.remove($ball.button)
+        $form.controls.remove($playBackground)
+        Set-Variable -name ball -scope 2 -value $(New-Ball -form $form -xLoc 350 -yLoc 600 -angle 140)
+        Set-Variable -name paddle -scope 2 -value $(New-Paddle -form $form)
+        Set-Variable -name playBackground -scope 2 -value $(New-PlayBackground)
+
+        Update-Lives $livesDisplay
+    }
+
+    function Update-Lives($livesDisplay){
+        $global:livesLeft--
+        $livesDisplay.text = [float]$global:LivesLeft
+    }
+
     # Load Level
     Initialize-Level $level -form $form
 
@@ -537,18 +569,20 @@ Function Open-PoshBlock($level, $debug = $false){
     $form.controls.addRange(@($scoreLabel,$scoreDisplay,$livesLabel,$livesDisplay))
 
     # Draw game area
-    $playBackground = New-Object system.windows.forms.groupbox
-    $playBackground.location = new-object System.Drawing.Point([float]$leftXBound,$([float]$topYBound - 10))
-    $tempWidth = [float]$rightXBound - [float]$leftXBound
-    $playBackground.width = $tempWidth + ($ball.width / 2)
-    $playBackground.height = $form.height
-    $form.controls.add($playBackground)
+    $playBackground = New-PlayBackground
+    
 
     # Timer acts as our main thread, each tick is a single frame
     $Timer = New-Object System.Windows.Forms.Timer
     $Timer.interval = $frameTime
     $Timer.add_tick({
         if($global:gameEnabled){
+            if($global:resetTrigger){
+                Reset-GameBoard $form $paddle $playBackground $ball $livesDisplay
+                $global:resetTrigger = $false
+                
+                
+            }
             # On each frame, update the ball and paddle positions
             $ball = Update-BallPosition $ball $paddle $form $debug
             if(!$debug){
