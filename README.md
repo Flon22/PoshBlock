@@ -22,8 +22,7 @@ ToDo:
 - [x] Scoring
 - [x] Lives / Game Over
 - [x] Level Switching
-- [ ] Powerups
+- [x] Powerups
+- [ ] User amendable settings
+- [ ] Levels
 - [ ] High Score
-- [ ] More Levels
-
-
