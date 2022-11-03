@@ -7,6 +7,10 @@ public static extern IntPtr GetConsoleWindow();
 [DllImport("user32.dll")]
 public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);'
 
+## DEBUG
+$debug = $false # True for mouse movement
+$levelSelect = $null # set to either null or number
+
 ## BOUNDARIES
 $leftXBound = 50
 $rightXBound = 750
@@ -19,7 +23,8 @@ $paddleSpeed = 10
 $ballSpeed = 7
 $powerUpSpeed = 5
 
-## LOGIC
+## GLOBAL LOGIC
+# There's an issue with variable scope in Timers so it's easier to just use a tonne of globals 
 $global:gameEnabled = $true
 $global:currentBlocks = New-Object System.Collections.ArrayList
 $global:score = 0
@@ -31,8 +36,8 @@ $global:blockColours = @{
     5="#249e49"
     6="#19bcc2"
     7="#1946c2"
-    8="#1946c2"
-    9="#9219c2"
+    8="#67AFBE"
+    9="#880C58"
     0="#d40db2"
 }
 $global:powers = @{
@@ -83,7 +88,7 @@ function New-Ball($xLoc = 0, $yLoc = 0, $angle = 20, $speed = $ballSpeed, $form)
 ## GENERATE A NEW POWERUP
 function New-PowerUp($xLoc = 0, $yLoc = 0, $angle = 270, $speed = $powerUpSpeed, $form){
     # Colour is based on the power which is chosen at random from the hashtable
-    $power = Get-Random -Minimum 0 -Maximum $($global:powers.Count - 1)
+    $power = Get-Random -Minimum 0 -Maximum $global:powers.Count
     #$power = 2
     $colour = $global:powers[$power]
 
@@ -530,33 +535,37 @@ function Update-PaddlePosition($paddle, $form){
 
 ## PICK UP LEVELS FROM FOLDER AND RETURN AS HASHTABLE
 Function Read-Levels($location){
-    $levels = Get-ChildItem -Path $location -Filter *.txt
+    $levels = Get-ChildItem -Path $location -Filter *.txt | sort-object -Property Name -Descending
     $allLevels = @{}
     $levelNum = 0
     $levels | ForEach-Object{
         $currentLevel = @()
         [System.IO.File]::ReadLines("$($_.FullName)") | ForEach-Object{
-            $xLoc = $_.split(",")[0]
-            $yLoc = $_.split(",")[1]
-            $colour = $_.split(",")[2]
-            $score = $_.split(",")[3]
-            $width = $_.split(",")[4]
-            
-            if(!$width){
-                $width = 70
+            if($_ -notmatch "^#.*"){
+                $xLoc = $_.split(",")[0]
+                $yLoc = $_.split(",")[1]
+                $colour = $_.split(",")[2]
+                $score = $_.split(",")[3]
+                $width = $_.split(",")[4]
+                
+                if(!$width){
+                    $width = 70
+                }
+                if(!$score){
+                    $score = $null
+                }
+                
+                $blockObj =  new-object PsObject -Property @{
+                    xLoc = $xLoc;
+                    yLoc = $yLoc;
+                    colour = $colour;
+                    width = $width;
+                    score = $score
+                }
+                if($xLoc){
+                    $currentLevel += $blockObj
+                }
             }
-            if(!$score){
-                $score = $null
-            }
-            
-            $blockObj =  new-object PsObject -Property @{
-                xLoc = $xLoc;
-                yLoc = $yLoc;
-                colour = $colour;
-                width = $width;
-                score = $score
-            }
-            $currentLevel += $blockObj
         }
         $allLevels.add($levelnum,$currentLevel)
         $levelNum += 1
@@ -570,7 +579,8 @@ Function Read-Levels($location){
 ## UPDATE SCOREBOARD - SET GLOBAL AND UPDATE UI
 function Update-Score($score){
     if($global:doubleScore){
-        $score = [float]$score * 2
+        $activePowerUpCount = $($global:currentPowerUps | where-object {$_.power -eq 2}).count
+        $score = [float]$score * $([float]$activePowerUpCount + 1)
     }
     $global:score += $score
     $scoreDisplay.text = $global:score
@@ -633,6 +643,11 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
         return $playBackground
     }
 
+    function Get-RandomAngle(){
+        $angle = get-random -Minimum 35 -Maximum 145
+        return [float]$angle
+    }
+
     # Reset the UI after a life is lost
     function Reset-GameBoard($form, $paddle, $playBackground, $livesDisplay){
         # loop though current balls in play and remove from form
@@ -644,7 +659,8 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
 
         # Create new ball array and populate with new ball
         $global:currentBalls = @()
-        $ball = New-Ball -form $form -xLoc 350 -yLoc 600 -angle 140
+        $randomAngle = Get-RandomAngle
+        $ball = New-Ball -form $form -xLoc 350 -yLoc 600 -angle $randomAngle
         $global:currentBalls += $ball
 
         # Set variables with Scope 2 - this sets the values in the form scope (not the best way to do this I know.)
@@ -657,7 +673,8 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
 
     # Create Main ball and Paddle 
     $paddle = New-Paddle -form $form
-    $ball = New-Ball -form $form -xLoc 350 -yLoc 600 -angle 130
+    $randomAngle = Get-RandomAngle
+    $ball = New-Ball -form $form -xLoc 350 -yLoc 600 -angle $randomAngle
     $global:currentBalls += $ball
 
     # Load Level
@@ -727,7 +744,7 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
                                 $global:currentPowerUps[$i].enabled = $false
                                 $ball = New-Ball -form $form -xLoc $global:currentBalls[0].button.location.x -yLoc $global:currentBalls[0].button.location.y -angle $([float]$global:currentBalls[0].angle + 20)
                                 $global:currentBalls += $ball
-                                
+                                $global:currentPowerUps[$i].destroy = $true
                             }
                             1{
                                 # Extended paddle
@@ -752,7 +769,7 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
                             2{
                                 # Mini paddle, double score
                                 if($global:currentPowerUps[$i].timer -eq 100){
-                                    write-host "Mini Paddle"
+                                    write-host "Mini Paddle - Bonus Points"
                                     $paddle.button.location.x = [float]$paddle.button.location.x + 10
                                     $paddle.button.width = [float]$paddle.button.width - 20
                                     $global:currentPowerUps[$i].timer -= 0.2
@@ -809,13 +826,19 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
 ## LOAD LEVELS
 $levels = Read-Levels $levelLocation
 
-## SEND EACH LEVEL TO USER
-foreach($key in $levels.keys){
+## IF LEVELSELECT IS POPULATED, LOAD LEVEL
+if($null -ne $levelSelect){
     if($global:gameEnabled){
-        Open-PoshBlock $levels[$key] $false $frameTime
+        Open-PoshBlock $levels[$levelSelect] $debug $frameTime
+    }
+}else{
+    ## SEND EACH LEVEL TO FORM
+    foreach($key in $levels.keys){
+        if($global:gameEnabled){
+            Open-PoshBlock $levels[$key] $debug $frameTime
+        }
     }
 }
-
 write-host "Game Over!"
 write-host "Score: $global:score"
 pause
