@@ -23,6 +23,4 @@ ToDo:
 - [x] Lives / Game Over
 - [x] Level Switching
 - [x] Powerups
-- [ ] User amendable settings
-- [ ] Levels
-- [ ] High Score
+- [x] Levels
