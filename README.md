@@ -14,7 +14,7 @@ There are currently 3 powerups.
 
 
 ## Level Design
-Levels are stored in txt files in `.\Levels\` using comma delimited columns. Each row defines a new block piece.  
+Levels are stored in txt files in `.\Levels\` using comma delimited columns. The game loads every level contained within this folder in alphabetical order. Each row in a txt file defines a new block piece.  
 There is a template available which is a grid of 10x10.  
 Comments can be added, prefix with a Hash "#"
 
