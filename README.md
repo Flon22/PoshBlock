@@ -14,8 +14,9 @@ There are currently 3 powerups.
 
 
 ## Level Design
-Levels are stored in txt files in `.\Levels\` using comma delimited columns.   
-Each row defines a new block piece.  
+Levels are stored in txt files in `.\Levels\` using comma delimited columns. Each row defines a new block piece.  
+There is a template available which is a grid of 10x10.  
+Comments can be added, prefix with a Hash "#"
 
 #### Columns
 |X Location|Y Location|Colour|Score (optional)|Width (optional)|
@@ -44,5 +45,4 @@ Each row defines a new block piece.
 |![Colour of hex value #880C58](https://placehold.co/15x15/880C58/880C58.png)|9|#880C58|90|
 |![Colour of hex value #D40DB2](https://placehold.co/15x15/D40DB2/D40DB2.png)|0|#D40DB2|0|
 
-There is a template available which is a grid of 10x10.  
-Comments can be added, prefix with a Hash "#"
+
