@@ -43,7 +43,7 @@ $global:blockColours = @{
 }
 $global:powers = @{
     0="#14a35e"
-    1="#441ab8"
+    1="#3492eb"
     2="#6c1ab8"
 }
 $global:powerUpChance = 35
@@ -720,7 +720,6 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
             $global:startTimer = 50
             $Timer.stop()
             $form.close()
-
         }
         # If the gameEnabled variable is true, run the standard update, false means a gameover condition
         if($global:gameEnabled){
@@ -734,6 +733,7 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
             if($global:startTimer -eq 0){
                 # Cound current balls in play then update the position of each one. 
                 $currentBallsCount = $global:currentBalls.Count
+                write-host $currentBallsCount
                 for($i = 0; $i -lt $currentBallsCount; $i++){
                     # Update position of ball
                     $global:currentBalls[$i] = Update-BallPosition $global:currentBalls[$i] $paddle $form $debug
@@ -850,10 +850,22 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
     $form.Add_MouseLeave({[System.Windows.Forms.Cursor]::Show()})
 
     # Hide console window
-    $consolePtr = [Console.Window]::GetConsoleWindow()
-    [Console.Window]::ShowWindow($consolePtr, 0) | out-null
+    #$consolePtr = [Console.Window]::GetConsoleWindow()
+    #[Console.Window]::ShowWindow($consolePtr, 0) | out-null
+
+    $form.add_Closing({
+        if ([System.Diagnostics.StackTrace]::new().GetFrames().GetMethod().Name -ccontains 'Close') {
+            # If closed with .Close()
+          } else {
+            # If closed with x in title bar
+            $Timer.stop()
+            $form.close()
+            $global:gameEnabled = $false
+          }
+    })
 
     [void][System.Windows.Forms.Application]::Run($form)
+    
 }
 
 ## LOAD LEVELS
@@ -875,4 +887,4 @@ if($null -ne $levelSelect){
 [System.Windows.Forms.Cursor]::Show()
 write-host "Game Over!"
 write-host "Score: $global:score"
-[System.Windows.MessageBox]::Show("Game Over!`nScore: $global:score","PoshBlock","OK","None")
+[void][System.Windows.MessageBox]::Show("Game Over!`nScore: $global:score","PoshBlock","OK","None")
