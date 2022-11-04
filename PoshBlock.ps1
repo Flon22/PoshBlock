@@ -850,8 +850,8 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
     $form.Add_MouseLeave({[System.Windows.Forms.Cursor]::Show()})
 
     # Hide console window
-    #$consolePtr = [Console.Window]::GetConsoleWindow()
-    #[Console.Window]::ShowWindow($consolePtr, 0) | out-null
+    $consolePtr = [Console.Window]::GetConsoleWindow()
+    [Console.Window]::ShowWindow($consolePtr, 0) | out-null
 
     [void][System.Windows.Forms.Application]::Run($form)
 }
