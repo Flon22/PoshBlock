@@ -1,3 +1,6 @@
+# This levelTemplate is a 10x10 grid of blocks
+# Design levels by removing the items from this grid
+#You can create your own full custom ones but its a bit of work
 90,90,1
 180,90,1
 270,90,1
