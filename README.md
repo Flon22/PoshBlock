@@ -3,7 +3,7 @@
 ## Description
 This is a block breaking game written from scratch using Powershell and WinForms.
 Bounce the ball around to break the blocks. Once all blocks are gone you move onto the next level. 
-There are currently 6 levels. These are stored in text files which you can add to. 
+There are currently 6 levels. These are stored in text files which you can add to for custom levels.
 
 There are currently 3 powerups.   
 ![Colour of hex value #14a35e](https://placehold.co/15x15/14a35e/14a35e.png) Green is Multiball  
