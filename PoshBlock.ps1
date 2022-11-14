@@ -24,8 +24,20 @@ $paddleSpeed = 10
 $ballSpeed = 7
 $powerUpSpeed = 5
 
-## GLOBAL LOGIC
+## GLOBALS
 # There's an issue with variable scope in Timers so it's easier to just use a tonne of globals 
+
+# GAME SETTINGS
+$global:startTimer = 50 #  amount of frames to skip at the start of a life
+$global:defaultColour = $true #  enable win3.1 windows colour
+$global:directMouseMovement = $true #  enable direct mouse capture rather than more difficult controller based movement
+$global:ballTrails = $true #  enable ball trails. Frame timing is pretty naff so this could be useful for rubbish monitors (also caps the number of multiballs to two)
+$global:ballTrailCount = 3 #  how many trail objects to spawn. Recommended you leave this at 3, max supported is 8
+$global:livesLeft = 3 #  how many lives you start with
+$global:powerUpChance = 18 #  chance a powerup will spawn on a broken block
+
+
+# GAME LOGIC
 $global:gameEnabled = $true
 $global:currentBlocks = New-Object System.Collections.ArrayList
 $global:score = 0
@@ -70,18 +82,12 @@ $global:ballGradientDarkColour = @{
     8="#212a2b"
 }
 
-$global:powerUpChance = 35
-$global:livesLeft = 3
 $global:resetTrigger = $false
 $global:nextLevel = $false
 $global:currentPowerUps = @()
 $global:currentBalls = @()
 $global:doubleScore = $false
-$global:startTimer = 50
-$global:defaultColour = $true
-$global:directMouseMovement = $true
-$global:ballTrails = $true
-$global:ballTrailCount = 3
+
 
 ## LEVELS
 $levelLocation = ".\Levels\"
@@ -166,6 +172,19 @@ function New-BallTrail($colour = 0){
 function New-PowerUp($xLoc = 0, $yLoc = 0, $angle = 270, $speed = $powerUpSpeed, $form){
     # Colour is based on the power which is chosen at random from the hashtable
     $power = Get-Random -Minimum 0 -Maximum $global:powers.Count
+
+    # If ball trails are enabled then only allow ~two multiballs at once. Lags with 3 or more. Doesn't account for falling powerups.
+    if($global:ballTrails -and $power -eq 0){
+        $currentMultiCount = $global:currentBalls.count
+        if($currentMultiCount -ge 2){
+            do{
+                # Randomly gets power until it isn't another multiball
+                $power = Get-Random -Minimum 0 -Maximum $global:powers.Count
+            }
+            while($power -eq 0)
+        }
+
+    }
     $colour = $global:powers[$power]
 
     $powerButton = [System.Windows.Forms.Button]::new()
