@@ -78,7 +78,7 @@ $global:currentPowerUps = @()
 $global:currentBalls = @()
 $global:doubleScore = $false
 $global:startTimer = 50
-$global:defaultColour = $false
+$global:defaultColour = $true
 $global:directMouseMovement = $true
 $global:ballTrails = $true
 $global:ballTrailCount = 3
@@ -107,16 +107,15 @@ function New-Ball($xLoc = 0, $yLoc = 0, $angle = 20, $speed = $ballSpeed, $form)
     $trails = @()
     $ballHistory = @()
 
-    # If ball trails are enabled then generate a number of extra balls to lag behind the actual one. 
+    # Adds ball trails if enabled
     if($global:ballTrails){
-        
         if($global:defaultColour){
             $ballTrailColourCount = $global:ballGradientDefaultColour.count - 1
         }else{
             $ballTrailColourCount = $global:ballGradientDarkColour.count - 1
         }
-        # Generate the colour based on a percentage of the number of trail balls against the number of colours available in the gradient arrays. Then add to array
-        for($i = 0;$i -lt $global:ballTrailCount;$i++){1
+        # Generate colour based on percentage of trail objects vs the amount of colours available
+        for($i = 0;$i -lt $global:ballTrailCount;$i++){
             $colour = $ballTrailColourCount - [math]::round(($i / $global:ballTrailCount) * $ballTrailColourCount)
             $trails += New-BallTrail $colour
         }
@@ -138,7 +137,7 @@ function New-Ball($xLoc = 0, $yLoc = 0, $angle = 20, $speed = $ballSpeed, $form)
 
 }
 
-## GENERATE A NEW BALL TRAIL OBJECT
+## GENERATE A NEW TRAIL OBJECT
 function New-BallTrail($colour = 0){
     $ballTrailButton = [System.Windows.Forms.Button]::new()
     $ballTrailButton.text = ""
@@ -338,15 +337,17 @@ function Update-BallPosition($ball, $paddle, $form, $debug = $false){
         }
         
     }
+
     if($global:ballTrails){
-        # Add the current ball location to the history and remove the older objects
+        # Update ball history with current position before moving ball
         $ball.history += New-Object System.Drawing.Point($ball.xLoc,$ball.yLoc)
         
+        # Remove any older history
         if($ball.history.count -gt $global:ballTrailCount){
             $ball.history = $ball.history | Select-object -last $global:ballTrailCount
         }
         
-        # For each item in the history, amend the location of the relevant trail object
+        # Update trail positions with current history
         for($i = 0; $i -lt $ball.history.count; $i++){
             $ball.trails[$i].button.location = $ball.history[$i]
         }
@@ -357,7 +358,6 @@ function Update-BallPosition($ball, $paddle, $form, $debug = $false){
     $ball.button.location = New-Object System.Drawing.Point($ball.xLoc,$ball.yLoc)
 
     return $ball
-
 }
 
 ## CHECK COLLISION FOR BALL ON A GIVEN X & Y COORDINATE
@@ -963,7 +963,7 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
 
             }
         }
-        # write-host "Frametime: $($frameTime.Milliseconds)"
+        # write-host "Frametime:$($frameTime.Milliseconds)"
 
     })
     $timer.Start()
