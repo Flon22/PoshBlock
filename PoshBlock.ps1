@@ -328,11 +328,11 @@ function Update-BallPosition($ball, $paddle, $form, $debug = $false){
         }
     }elseif($collision -eq 6){
         # collision = 6 means the ball has hit the bottom border and is out of bounds
-        if($global:livesLeft -gt 1){
-            # Sets the ball to destroy itself
-            $ball.destroy = $true
-        }else{
-            # if the player has no further lives then the game is ended
+        # Sets the ball to destroy itself
+        $ball.destroy = $true
+
+        if($global:livesLeft -eq 1 -and $global:currentBalls.count -eq 1){
+            # if the player has no further lives and there are no further balls in play then the game is ended
             $global:gameEnabled = $false
         }
         
