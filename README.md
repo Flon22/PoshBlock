@@ -4,6 +4,7 @@
 This is a block breaking game written from scratch using Powershell and WinForms.
 Bounce the ball around to break the blocks. Once all blocks are gone you move onto the next level. 
 There are currently 6 levels. These are stored in text files which you can add to for custom levels.
+To run it just open the batch file, or run the ps1 script.
 
 There are currently 3 powerups.   
 ![Colour of hex value #14a35e](https://placehold.co/15x15/14a35e/14a35e.png) Green is Multiball  
@@ -45,4 +46,8 @@ Comments can be added, prefix with a Hash "#"
 |![Colour of hex value #880C58](https://placehold.co/15x15/880C58/880C58.png)|9|#880C58|90|
 |![Colour of hex value #D40DB2](https://placehold.co/15x15/D40DB2/D40DB2.png)|0|#D40DB2|0|
 
+
+
+
+https://user-images.githubusercontent.com/49537164/200406559-ea27e872-b03f-451a-a410-c4afb7759353.mp4
 
