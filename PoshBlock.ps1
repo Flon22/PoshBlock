@@ -827,7 +827,7 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
     $Timer = New-Object System.Windows.Forms.Timer
     $Timer.interval = $frameTime
     $Timer.add_tick({
-        $frameTime = Measure-Command{
+        $frameTimer = Measure-Command{
             # if the nextlevel trigger is enabled after breaking all blocks, load unload the current level
             if($global:nextLevel){
                 write-host "Level End"
@@ -848,7 +848,7 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
 
                 }
                 if($global:startTimer -eq 0){
-                    # Cound current balls in play then update the position of each one. 
+                    # Count current balls in play then update the position of each one. 
                     $currentBallsCount = $global:currentBalls.Count
                     for($i = 0; $i -lt $currentBallsCount; $i++){
                         # Update position of ball
@@ -963,7 +963,7 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
 
             }
         }
-        # write-host "Frametime:$($frameTime.Milliseconds)"
+        # write-host "Frametimer:$($frameTime.Milliseconds)"
 
     })
     $timer.Start()
