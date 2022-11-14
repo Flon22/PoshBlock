@@ -8,36 +8,30 @@ public static extern IntPtr GetConsoleWindow();
 [DllImport("user32.dll")]
 public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);'
 
+## GAME SETTINGS - these can be amended, go nuts. 
 ## DEBUG
-$debug = $false # True for mouse movement
-$levelSelect = $null # set to either null or number
-
-## BOUNDARIES
-$leftXBound = 50
-$rightXBound = 750
-$topYBound = 50
-$bottomYBound = 700
+$debug = $false       # set to true to enable mouse movement on the ball
+$levelSelect = $null  # set to either null or number
+$hideConsole = $true  # set to true to hide console window
 
 ## SPEEDS
-$frameTime = 12
-$paddleSpeed = 10
-$ballSpeed = 7
-$powerUpSpeed = 5
+$frameTime = 12       # time in ms between each frame as set in the timer loop
+$paddleSpeed = 10     # speed of the paddle if Global:directMouseMovement is set to false
+$ballSpeed = 7        # ball movement speed between frames
+$powerUpSpeed = 5     # power up speed between frames
 
 ## GLOBALS
 # There's an issue with variable scope in Timers so it's easier to just use a tonne of globals 
-
-# GAME SETTINGS
-$global:startTimer = 50 #  amount of frames to skip at the start of a life
-$global:defaultColour = $true #  enable win3.1 windows colour
+$global:startTimer = 50             #  amount of frames to skip at the start of a life
+$global:defaultColour = $true       #  enable win3.1 windows colour
 $global:directMouseMovement = $true #  enable direct mouse capture rather than more difficult controller based movement
-$global:ballTrails = $true #  enable ball trails. Frame timing is pretty naff so this could be useful for rubbish monitors (also caps the number of multiballs to two)
-$global:ballTrailCount = 3 #  how many trail objects to spawn. Recommended you leave this at 3, max supported is 8
-$global:livesLeft = 3 #  how many lives you start with
-$global:powerUpChance = 18 #  chance a powerup will spawn on a broken block
+$global:ballTrails = $false         #  enable ball trails. Frame timing is pretty naff so this could be useful for rubbish monitors (also caps the number of multiballs to two)
+$global:ballTrailCount = 3          #  how many trail objects to spawn. Recommended you leave this at 3, max supported is 8
+$global:livesLeft = 3               #  how many lives you start with
+$global:powerUpChance = 18          #  chance a powerup will spawn on a broken block
 
 
-# GAME LOGIC
+## GAME LOGIC - DON'T TOUCH THESE
 $global:gameEnabled = $true
 $global:currentBlocks = New-Object System.Collections.ArrayList
 $global:score = 0
@@ -88,6 +82,11 @@ $global:currentPowerUps = @()
 $global:currentBalls = @()
 $global:doubleScore = $false
 
+## BOUNDARIES
+$leftXBound = 50
+$rightXBound = 750
+$topYBound = 50
+$bottomYBound = 700
 
 ## LEVELS
 $levelLocation = ".\Levels\"
@@ -992,9 +991,8 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
     $form.Add_MouseEnter({if($global:gameEnabled){[System.Windows.Forms.Cursor]::Hide()}})
     $form.Add_MouseLeave({[System.Windows.Forms.Cursor]::Show()})
 
-    # Hide console window
-    #$consolePtr = [Console.Window]::GetConsoleWindow()
-    #[Console.Window]::ShowWindow($consolePtr, 0) | out-null
+
+
 
     $form.add_Closing({
         if ([System.Diagnostics.StackTrace]::new().GetFrames().GetMethod().Name -ccontains 'Close') {
@@ -1013,6 +1011,12 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
 
 ## LOAD LEVELS
 $levels = Read-Levels $levelLocation
+
+# HIDE CONSOLE WINDOW
+if($hideConsole){
+    $consolePtr = [Console.Window]::GetConsoleWindow()
+    [Console.Window]::ShowWindow($consolePtr, 0) | out-null
+}
 
 ## IF LEVELSELECT IS POPULATED, LOAD SPECIFIC LEVEL
 if($null -ne $levelSelect){
