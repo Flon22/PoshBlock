@@ -38,6 +38,12 @@ $levelLocation = ".\Levels\"                        #  location of the level fil
 $global:gameEnabled = $true
 $global:currentBlocks = New-Object System.Collections.ArrayList
 $global:score = 0
+$global:resetTrigger = $false
+$global:nextLevel = $false
+$global:currentPowerUps = @()
+$global:currentBalls = @()
+$global:doubleScore = $false
+$global:manuallyClosed = $false
 $global:blockColours = @{
     1="#e02424" 
     2="#e06624" 
@@ -78,12 +84,6 @@ $global:ballGradientDarkColour = @{
     7="#233438"
     8="#212a2b"
 }
-
-$global:resetTrigger = $false
-$global:nextLevel = $false
-$global:currentPowerUps = @()
-$global:currentBalls = @()
-$global:doubleScore = $false
 
 ## BOUNDARIES
 $leftXBound = 50
@@ -1066,8 +1066,13 @@ if($null -ne $levelSelect){
         }
     }
 }
-
-$highScores = Compare-Highscore $global:score $highScoreLocation
-write-host "Game Over!"
-write-host "Score: $global:score"
-[void][System.Windows.MessageBox]::Show("$("Game Over!".padleft(39))`n$("Score: $global:score".padleft(40))`n`nHighScores:`n$highScores","PoshBlock","OK","None")
+if(!$global:manuallyClosed){
+    if(!$debug){
+        $highScores = Compare-Highscore $global:score $highScoreLocation
+    }else{
+        $highScores = "Debug Mode, no highscores loaded."
+    }
+    write-host "Game Over!"
+    write-host "Score: $global:score"
+    [void][System.Windows.MessageBox]::Show("$("Game Over!".padleft(39))`n$("Score: $global:score".padleft(40))`n`nHighScores:`n$highScores","PoshBlock","OK","None")
+}
