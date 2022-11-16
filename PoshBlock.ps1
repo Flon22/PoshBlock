@@ -12,7 +12,7 @@ public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);'
 ## DEBUG
 $debug = $false       # set to true to enable mouse movement on the ball
 $levelSelect = $null  # set to either null or number
-$hideConsole = $false  # set to true to hide console window
+$hideConsole = $true  # set to true to hide console window
 
 ## SPEEDS
 $frameTime = 12       # time in ms between each frame as set in the timer loop
