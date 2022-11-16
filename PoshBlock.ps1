@@ -12,7 +12,7 @@ public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);'
 ## DEBUG
 $debug = $false       # set to true to enable mouse movement on the ball
 $levelSelect = $null  # set to either null or number
-$hideConsole = $true  # set to true to hide console window
+$hideConsole = $false  # set to true to hide console window
 
 ## SPEEDS
 $frameTime = 12       # time in ms between each frame as set in the timer loop
@@ -30,6 +30,9 @@ $global:ballTrailCount = 3          #  how many trail objects to spawn. Recommen
 $global:livesLeft = 3               #  how many lives you start with
 $global:powerUpChance = 18          #  chance a powerup will spawn on a broken block
 
+## LOCATIONS
+$highScoreLocation = "c:\temp\PoshBlockScores.txt"  #  location of the high score file
+$levelLocation = ".\Levels\"                        #  location of the level files
 
 ## GAME LOGIC - DON'T TOUCH THESE
 $global:gameEnabled = $true
@@ -86,10 +89,7 @@ $global:doubleScore = $false
 $leftXBound = 50
 $rightXBound = 750
 $topYBound = 50
-$bottomYBound = 700
-
-## LEVELS
-$levelLocation = ".\Levels\"
+$bottomYBound = 680
 
 
 #####  GENERATION FUNCTIONS
@@ -777,8 +777,12 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
         $tempWidth = [float]$rightXBound - [float]$leftXBound
         $tempHeight = [float]$bottomYBound - [float]$topYBound
         $playBackground.width = $tempWidth + ($ball.width / 2)
-        $playBackground.height = $tempHeight
+        $playBackground.height = $tempHeight + (15)
         $form.controls.add($playBackground)
+
+        # Hide cursor if the mouse is in the gamewindow
+        $playBackground.Add_MouseEnter({if($global:gameEnabled){[System.Windows.Forms.Cursor]::Hide()}})
+        $playBackground.Add_MouseLeave({[System.Windows.Forms.Cursor]::Show()})
         return $playBackground
     }
 
@@ -956,16 +960,14 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
                                         }
                                     }
                                 }
-                                
                             }
                             # If a powerup is set to destroy itself, remove the item from the array and update the count
                             if($global:currentPowerUps[$i].destroy){
+                                $form.controls.remove($global:currentPowerUps[$i].button)
                                 $global:currentPowerUps = @($global:currentPowerUps | where-object {$_ -ne $global:currentPowerUps[$i]})
                                 $currentPowerUpCount = $global:currentPowerUps.Count
-
                             }
                         }
-
                     }
                     # If debug is disabled then update the paddle location
                     if(!$debug){
@@ -973,26 +975,15 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
                     }
                 }else{
                     $global:startTimer--
-
                 }
             }else{
                 $Timer.stop()
                 $form.close()
-
             }
         }
         # write-host "Frametimer:$($frameTime.Milliseconds)"
-
     })
     $timer.Start()
-
-    # Hide cursor if the mouse is in the gamewindow
-    $playBackground.Add_MouseEnter({if($global:gameEnabled){[System.Windows.Forms.Cursor]::Hide()}})
-    $form.Add_MouseEnter({if($global:gameEnabled){[System.Windows.Forms.Cursor]::Hide()}})
-    $form.Add_MouseLeave({[System.Windows.Forms.Cursor]::Show()})
-
-
-
 
     $form.add_Closing({
         if ([System.Diagnostics.StackTrace]::new().GetFrames().GetMethod().Name -ccontains 'Close') {
@@ -1007,6 +998,50 @@ Function Open-PoshBlock($level, $debug = $false, $frameTime){
 
     [void][System.Windows.Forms.Application]::Run($form)
     
+}
+
+## CHECK HIGHSCORES
+function Compare-Highscore($score, $location){
+    # Keep track of the high scores and add the current score to the highscore file
+    $scores = @()
+    # If the score location exists, then fetch scores and add to it. 
+    if(test-path $location){
+        # Score file is encoded in base64 to avoid it from being amended. 
+        # Decode scores file and loop through to generate score objects
+        $base64String = Get-Content -path $location
+        $fullString = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($base64String)) -split "`r`n"
+        $fullString | ForEach-Object {
+            if($_ -ne ""){
+                $scoreItem = New-Object PsObject -Property @{
+                    Player = $_.split(":")[0];
+                    Score = [int]$_.split(":")[1];
+                }
+                $scores += $scoreItem
+            }
+        }
+    }
+    # Create score object for current score and player
+    $currentScoreItem = New-Object PsObject -Property @{
+        Player = $env:UserName;
+        Score = [int]$score;
+    }
+    $scores += $currentScoreItem
+    
+    # Generate string to output to score file
+    $outString = ""
+    $scores | Sort-Object -Property Score -Descending | ForEach-Object {
+        $outString += "$($_.Player):$($_.Score)`r`n"   
+    }
+    # Encode string to base64 and output to file
+    $outString = [System.Text.Encoding]::Unicode.GetBytes($outString)
+    [Convert]::ToBase64String($outString) | Out-File -FilePath $location -force
+    
+    # Generate string to return to relay to player
+    $returnString = ""
+    $scores | Sort-Object -Property Score -Descending | Select-Object -First 10 | ForEach-Object {
+        $returnString += "$("$($_.Player):".padright(60 - [int]$_.Player.length))`t$($_.Score)`r`n"   
+    }
+    return $returnString
 }
 
 ## LOAD LEVELS
@@ -1031,7 +1066,8 @@ if($null -ne $levelSelect){
         }
     }
 }
-[System.Windows.Forms.Cursor]::Show()
+
+$highScores = Compare-Highscore $global:score $highScoreLocation
 write-host "Game Over!"
 write-host "Score: $global:score"
-[void][System.Windows.MessageBox]::Show("Game Over!`nScore: $global:score","PoshBlock","OK","None")
+[void][System.Windows.MessageBox]::Show("$("Game Over!".padleft(39))`n$("Score: $global:score".padleft(40))`n`nHighScores:`n$highScores","PoshBlock","OK","None")
