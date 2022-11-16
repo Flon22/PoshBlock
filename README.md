@@ -12,7 +12,9 @@ There are currently 3 powerups.
 ![Colour of hex value #6c1ab8](https://placehold.co/15x15/6c1ab8/6c1ab8.png) Purple is Mini paddle which multiplies your score for a duration  
 
 
-
+## Settings
+There are a few settings that can be amended at the top of the main PoshBlock.ps1 file.  
+Descriptions can be found by each one, have a play round. 
 
 ## Level Design
 Levels are stored in txt files in `.\Levels\` using comma delimited columns. The game loads every level contained within this folder in alphabetical order. Each row in a txt file defines a new block piece.  
